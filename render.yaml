@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: telegram-bot
-    env: php
-    plan: free
-    buildCommand: |
-      apt-get update
-      apt-get install -y php-pgsql php-curl php-json php-mbstring
-    startCommand: php -S 0.0.0.0:$PORT bot.php
