@@ -6,14 +6,14 @@
  * Channel   : @GrokCreator
  * Botsaz    : @GrokCreatorBot
  */
- 
+
 //------------//
 $BOT_TOKEN = '8342748520:AAHaLxjLBY4tZGD1nYDcu_PJDbc34zFB4Xs';//توکن ربات
-$OWNER_ID  = 5959954413 ;//مالک عددی
+$OWNER_ID  = 5959954413;//مالک عددی
 //------------//
 
 // دیتابیس Neon.tech
-$DB_HOST = 'ep-xxx-pool.us-east-1.aws.neon.tech';
+$DB_HOST = 'ep-little-bread-ad76nlbt-pooler.c-2.us-east-1.aws.neon.tech';
 $DB_NAME = 'neondb';
 $DB_USER = 'neondb_owner';
 $DB_PASS = 'npg_Mp0FVwT1GkNI';
@@ -21,14 +21,20 @@ $DB_PORT = '5432';
 
 // اتصال به دیتابیس
 try {
-    $pdo = new PDO("pgsql:host=$DB_HOST;port=$DB_PORT;dbname=$DB_NAME", $DB_USER, $DB_PASS, [
+    $dsn = "pgsql:host=$DB_HOST;port=$DB_PORT;dbname=$DB_NAME;sslmode=require";
+    $pdo = new PDO($dsn, $DB_USER, $DB_PASS, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_PERSISTENT => false
     ]);
+    
+    // تنظیم timezone
+    $pdo->exec("SET timezone = 'UTC'");
+    
 } catch(PDOException $e) {
     error_log("Database connection failed: " . $e->getMessage());
     http_response_code(500);
-    exit("Database error");
+    exit("Database connection error");
 }
 
 $API_URL   = "https://api.telegram.org/bot{$BOT_TOKEN}/";
@@ -43,63 +49,36 @@ $LOG_FILE  = $DATA_DIR . '/app.log';
 
 $SECRET_SALT = '.';
 
-
 $EMOJI = [
-
     'wave'     => "👋",
-
     'rocket'   => "🚀",
-
     'user'     => "👤",
-
     'support'  => "🛟",
-
     'shield'   => "🛡️",
-
     'gear'     => "⚙️",
-
     'check'    => "✅",
-
     'off'      => "⛔",
-
     'on'       => "🟢",
-
     'file'     => "📦",
-
     'link'     => "🔗",
-
     'id'       => "🆔",
-
     'clock'    => "⏳",
-
     'trash'    => "🗑️",
-
     'inbox'    => "📥",
-
     'outbox'   => "📤",
-
     'warn'     => "⚠️",
-
     'pin'      => "📌",
-
     'folder'   => "🗂️",
-
     'ok'       => "✨",
-
     'stop'     => "🛑",
-
     'loop'     => "🔁",
-
     'stats'    => "📊",
-
     'broadcast'=> "📣",
-
     'backup'   => "🧩",
-
     'search'   => "🔍",
-
 ];
 
+// ایجاد جداول اگر وجود ندارند
 initDatabase($pdo);
 
 function initDatabase($pdo) {
@@ -139,7 +118,11 @@ function initDatabase($pdo) {
     ];
     
     foreach ($tables as $table) {
-        $pdo->exec($table);
+        try {
+            $pdo->exec($table);
+        } catch (PDOException $e) {
+            error_log("Table creation error: " . $e->getMessage());
+        }
     }
     
     // تنظیمات پیش‌فرض
