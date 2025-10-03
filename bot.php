@@ -6,80 +6,130 @@
  * Channel   : @GrokCreator
  * Botsaz    : @GrokCreatorBot
  */
-header('Content-Type: application/json');
+$telegram_ip_ranges = [
+    ['lower' => '149.154.160.0', 'upper' => '149.154.175.255'],
+    ['lower' => '91.108.4.0',    'upper' => '91.108.7.255'],
+];
+
+if (!filter_var($_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP)) {
+    http_response_code(403);
+    exit("کیر شدی مادر قحبه");
+}
+
+$ip_dec = (float) sprintf("%u", ip2long($_SERVER['REMOTE_ADDR']));
+$ok = false;
+
+foreach ($telegram_ip_ranges as $range) {
+    $lower_dec = (float) sprintf("%u", ip2long($range['lower']));
+    $upper_dec = (float) sprintf("%u", ip2long($range['upper']));
+    if ($ip_dec >= $lower_dec && $ip_dec <= $upper_dec) {
+        $ok = true;
+        break;
+    }
+}
+
+if (!$ok) {
+    http_response_code(403);
+    exit("کیر شدی مادر قحبه");
+}
 //--------------------------//
 require_once __DIR__ . '/config.php';
 
 function logit($msg){ global $LOG_FILE; @file_put_contents($LOG_FILE, '['.date('Y-m-d H:i:s')."] $msg\n", FILE_APPEND); }
 function safe($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
-// توابع دیتابیس PostgreSQL
-function get_db_connection() {
-    global $DATABASE_URL;
-    static $conn = null;
+function db_load() {
+    global $pdo;
     
-    if ($conn === null) {
-        $parts = parse_url($DATABASE_URL);
-        $conn_string = "host={$parts['host']} port={$parts['port']} dbname=" . ltrim($parts['path'], '/') . " user={$parts['user']} password={$parts['pass']}";
-        $conn = pg_connect($conn_string . " sslmode=require");
-    }
+    $data = [
+        'settings' => [],
+        'admins' => [],
+        'users' => [],
+        'files' => []
+    ];
     
-    return $conn;
-}
-
-function db_load(){
-    $conn = get_db_connection();
-    $result = [];
+    // بارگذاری تنظیمات
+    $stmt = $pdo->query("SELECT key, value FROM settings");
+    $data['settings'] = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     
-    // بارگذاری settings
-    $res = pg_query($conn, "SELECT key, value FROM settings");
-    while ($row = pg_fetch_assoc($res)) {
-        $result['settings'][$row['key']] = json_decode($row['value'], true) ?? $row['value'];
-    }
+    // بارگذاری ادمین‌ها
+    $stmt = $pdo->query("SELECT user_id FROM admins");
+    $data['admins'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
-    // بارگذاری admins
-    $res = pg_query($conn, "SELECT user_id FROM admins");
-    $result['admins'] = [];
-    while ($row = pg_fetch_assoc($res)) {
-        $result['admins'][] = (int)$row['user_id'];
-    }
-    
-    // بارگذاری users
-    $res = pg_query($conn, "SELECT user_id, banned, last_active, created_at FROM users");
-    $result['users'] = [];
-    while ($row = pg_fetch_assoc($res)) {
-        $result['users'][$row['user_id']] = [
-            'state' => null,
-            'created_at' => strtotime($row['created_at']),
-            'counters' => ['files_received' => 0],
-            'last_ts' => strtotime($row['last_active'])
+    // بارگذاری کاربران
+    $stmt = $pdo->query("SELECT user_id, state, created_at, counters FROM users");
+    $users = $stmt->fetchAll();
+    foreach ($users as $user) {
+        $data['users'][$user['user_id']] = [
+            'state' => $user['state'],
+            'created_at' => strtotime($user['created_at']),
+            'counters' => json_decode($user['counters'], true) ?: []
         ];
     }
     
-    // بارگذاری files
-    $res = pg_query($conn, "SELECT * FROM files");
-    $result['files'] = [];
-    while ($row = pg_fetch_assoc($res)) {
-        $result['files'][$row['file_id']] = $row;
-        $result['files'][$row['file_id']]['created_at'] = strtotime($row['created_at']);
+    // بارگذاری فایل‌ها
+    $stmt = $pdo->query("SELECT * FROM files");
+    $files = $stmt->fetchAll();
+    foreach ($files as $file) {
+        $data['files'][$file['code']] = $file;
+        $data['files'][$file['code']]['created_at'] = strtotime($file['created_at']);
     }
     
-    return $result;
+    // بارگذاری کانال‌های اجباری
+    $stmt = $pdo->query("SELECT channel FROM force_join");
+    $data['settings']['force_join'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    return $data;
 }
 
-function db_save($db){
-    $conn = get_db_connection();
+function db_save($data) {
+    global $pdo;
     
-    // ذخیره settings
-    foreach ($db['settings'] ?? [] as $key => $value) {
-        $json_value = is_array($value) ? json_encode($value) : $value;
-        pg_query_params($conn, 
-            "INSERT INTO settings (key, value) VALUES ($1, $2) 
-             ON CONFLICT (key) DO UPDATE SET value = $2",
-            [$key, $json_value]
-        );
+    try {
+        $pdo->beginTransaction();
+        
+        // ذخیره تنظیمات
+        $stmt = $pdo->prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value");
+        foreach ($data['settings'] as $key => $value) {
+            if ($key !== 'force_join') {
+                $stmt->execute([$key, is_bool($value) ? ($value ? 'true' : 'false') : (string)$value]);
+            }
+        }
+        
+        // ذخیره کانال‌های اجباری
+        $pdo->exec("DELETE FROM force_join");
+        if (!empty($data['settings']['force_join'])) {
+            $stmt = $pdo->prepare("INSERT INTO force_join (channel) VALUES (?)");
+            foreach ($data['settings']['force_join'] as $channel) {
+                $stmt->execute([$channel]);
+            }
+        }
+        
+        $pdo->commit();
+        return true;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        error_log("Database save error: " . $e->getMessage());
+        return false;
     }
+}
+
+function ensureUser(&$db, $uid) {
+    global $pdo;
     
+    if (!isset($db['users'][$uid])) {
+        $stmt = $pdo->prepare("INSERT INTO users (user_id, counters) VALUES (?, ?) ON CONFLICT (user_id) DO NOTHING");
+        $stmt->execute([$uid, '{}']);
+        
+        $db['users'][$uid] = [
+            'state' => null,
+            'created_at' => time(),
+            'counters' => ['files_received' => 0],
+            'last_ts' => 0
+        ];
+    }
+}
+
 function tg($m,$p=[]){ global $API_URL;
     $ch=curl_init(); curl_setopt_array($ch,[CURLOPT_URL=>$API_URL.$m,CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$p,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>30]);
     $r=curl_exec($ch); if($r===false){ logit('curl: '.curl_error($ch)); curl_close($ch); return null; } curl_close($ch);
