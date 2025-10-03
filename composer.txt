@@ -1,0 +1,9 @@
+{
+  "require": {
+    "php": "^7.4",
+    "ext-pgsql": "*"
+  },
+  "scripts": {
+    "start": "php -S 0.0.0.0:$PORT bot.php"
+  }
+}
