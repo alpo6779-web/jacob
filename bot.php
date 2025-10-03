@@ -210,13 +210,15 @@ function panelKB($db){ global $EMOJI;
 function isAdmin($db,$uid){ return in_array((int)$uid,$db['admins']??[],true); }
 
 function rateCheck(&$db,$uid){
-    $rl=$db['settings']['rate_limit']; $now=time();
+    $rl=$db['settings']['rate_limit'] ?? ['window' => 10, 'max' => 20]; 
+    $now=time();
     $u=&$db['users'][$uid];
     if(!isset($u['rl'])) $u['rl']=['win_start'=>$now,'count'=>0];
     if($now - $u['rl']['win_start'] > $rl['window']){ $u['rl']=['win_start'=>$now,'count'=>0]; }
     if($u['rl']['count'] >= $rl['max']) return false;
     $u['rl']['count']++; return true;
 }
+
 function genCode($len=8){ $raw=bin2hex(random_bytes(4)); return strtoupper(substr($raw,0,$len)); }
 function signCode($code){ global $SECRET_SALT; return substr(hash_hmac('sha256',$code,$SECRET_SALT),0,6); }
 function makeSignedCode(){ $c=genCode(8); return $c.'-'.strtoupper(signCode($c)); }
