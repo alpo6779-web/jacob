@@ -208,12 +208,7 @@ function panelKB($db){ global $EMOJI;
     ]];
 }
 function isAdmin($db,$uid){ return in_array((int)$uid,$db['admins']??[],true); }
-function ensureUser(&$db,$uid){
-    if(!isset($db['users'][$uid])){
-        $db['users'][$uid]=['state'=>null,'created_at'=>time(),'counters'=>['files_received'=>0],'last_ts'=>0];
-        db_save($db);
-    }
-}
+
 function rateCheck(&$db,$uid){
     $rl=$db['settings']['rate_limit']; $now=time();
     $u=&$db['users'][$uid];
