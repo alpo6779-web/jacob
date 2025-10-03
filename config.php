@@ -12,7 +12,7 @@ $BOT_TOKEN = getenv('BOT_TOKEN') ?: '8342748520:AAHaLxjLBY4tZGD1nYDcu_PJDbc34zFB
 $OWNER_ID  = (int) (getenv('OWNER_ID') ?: 5959954413);//مالک عددی
 //------------//
 
-$DATABASE_URL = getenv('DATABASE_URL') ?: 'postgresql://neondo_owner:YOUR_PASSWORD@ep-frosty-darkness-adjcq426-pooler.c-2.us-east-1.aws.neon.tech/neondo?sslmode=require';
+$DATABASE_URL = getenv('DATABASE_URL') ?: 'postgresql://neondo_owner:npg_Mp0FVwT1GkNI@ep-frosty-darkness-adjcq426-pooler.c-2.us-east-1.aws.neon.tech/neondo?sslmode=require';
 
 $API_URL   = "https://api.telegram.org/bot{$BOT_TOKEN}/";
 $FILE_API  = "https://api.telegram.org/file/bot{$BOT_TOKEN}/";
