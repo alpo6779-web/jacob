@@ -8,15 +8,15 @@
  */
  
 //------------//
-$BOT_TOKEN = '';//توکن ربات
-$OWNER_ID  = ;//مالک عددی
+$BOT_TOKEN = '8342748520:AAHaLxjLBY4tZGD1nYDcu_PJDbc34zFB4Xs';//توکن ربات
+$OWNER_ID  = 5959954413 ;//مالک عددی
 //------------//
 
 // دیتابیس Neon.tech
 $DB_HOST = 'ep-xxx-pool.us-east-1.aws.neon.tech';
 $DB_NAME = 'neondb';
 $DB_USER = 'neondb_owner';
-$DB_PASS = 'your_password';
+$DB_PASS = 'npg_Mp0FVwT1GkNI';
 $DB_PORT = '5432';
 
 // اتصال به دیتابیس
